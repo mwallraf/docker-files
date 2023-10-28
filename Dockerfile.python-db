@@ -1,0 +1,37 @@
+# Dockerfile that will builds a custom image based on the standard Python image
+# and adds the necessary packages to connect to multiple databases, including
+# mysql, oracle, postgres, mongodb
+#
+# Make sure to use an alpine based python image (ex: 3.10-alpine) 
+
+# Use the build argument as the Python version
+ARG PYTHON_VERSION=3.10
+FROM python:${PYTHON_VERSION}-alpine
+
+ENV PATH /usr/local/bin:$PATH
+ENV LANG C.UTF-8
+
+USER root
+
+ENV LD_LIBRARY_PATH=/lib:/lib/oracle/11.2/client64/lib
+ENV ORACLE_HOME=/lib/oracle/11.2/client64
+
+RUN apk add --no-cache curl \
+    && curl -k -o /tmp/basic.zip https://raw.githubusercontent.com/wilo087/Oracle-Instaclient_11_2/master/instantclient-basic-linux.x64-11.2.0.4.0.zip
+
+# Unzip downloaded library
+RUN unzip -d /tmp/oracle/ /tmp/basic.zip \
+    && mkdir -p /lib/oracle/11.2/client64/lib \
+    && cp /tmp/oracle/instantclient_11_2/* /lib/oracle/11.2/client64/lib/ \
+    && rm -rf /tmp/oracle \
+    && ln -s /lib/oracle/11.2/client64/lib/libclntsh.so.11.1 /lib/oracle/11.2/client64/lib/libclntsh.so \
+    && ln -s /usr/lib/libnsl.so.2.0.1 /lib/libnsl.so.1 \
+    && rm -rf /tmp/basic.zip
+
+RUN buildDeps='gcc python3-dev musl-dev postgresql-dev' \
+    && apk update \
+    && apk add --no-cache libpq bash procps lapack libstdc++ g++ gcc gfortran musl-dev lapack-dev libaio libnsl mariadb-connector-c-dev \
+    && apk add --virtual temp1 --no-cache $buildDeps \
+    && pip3 install --upgrade pip \
+    && pip3 install --no-cache-dir cx-Oracle==8.3.0 mysql-connector-python poetry PyMySQL psycopg2 loguru pymongo PyYAML pycryptodomex ldap3 \
+    && apk del temp1
